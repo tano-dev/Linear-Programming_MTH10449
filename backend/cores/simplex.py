@@ -3,13 +3,14 @@ from fractions import Fraction
 
 from backend.models import CanonicalProblem
 
-class TwoPhases:
+class Simplex:
     """
-    Two - phases algorithm
+    Simplex algorithm
     """
-    def __init__(self, problem: CanonicalProblem, bland: bool = False, verbose: bool=True):
-        if not problem.need_two_phases:
-            raise ValueError("This problem does not need Two - Phases algorithm. Please try to use another algorithm")
+    def __init__(self, problem: CanonicalProblem, bland: bool = False, verbose: bool = True):
+        if problem.need_two_phases:
+            raise ValueError("This problem need two-phases algorithm")
+        
         self.problem = problem
         self.num_variables = len(problem.variable_names)
         self.num_constraints = len(problem.b)
@@ -17,14 +18,13 @@ class TwoPhases:
         self.verbose = verbose
         self.status = "INITIALIZED"
 
-        self.M = np.zeros((self.num_constraints + 2, self.num_variables + 2)) 
-        self.M[:self.num_constraints, 0] = problem.b
-        self.M[:self.num_constraints, 1:self.num_variables+1] = -np.array(problem.A)
-        self.M[:self.num_constraints, -1] = 1.0
-        self.M[self.num_constraints, self.num_variables+1] = 1.0 
-        self.M[self.num_constraints+1, 1:self.num_variables+1] = problem.c
+        self.M = np.zeros((self.num_constraints + 1, self.num_variables + 1))
 
-        self.non_basic_vars = problem.variable_names + ["x_0"]
+        self.M[:self.num_constraints, 0] = problem.b
+        self.M[:self.num_constraints, 1:] = -np.array(problem.A)
+        self.M[self.num_constraints, 1:] = problem.c
+
+        self.non_basic_vars = problem.variable_names.copy()
         self.basic_vars = [f"w_{i+1}" for i in range(self.num_constraints)]
 
     def find_entering_variable(self, obj_row_idx: int) -> int:
@@ -54,7 +54,7 @@ class TwoPhases:
             
         _, idx = min(rows, key=lambda x: (x[0], x[1])) 
         return idx
-
+    
     def pivot(self, r_out: int, c_in: int):
         """
         Turning Simplex Dictionary
@@ -75,11 +75,11 @@ class TwoPhases:
         self.basic_vars[r_out] = entering_var
         self.non_basic_vars[c_in - 1] = leaving_var
 
-    def print_dictionary(self, phase_name: str):
+    def print_dictionary(self):
         """
         Print dictionary to terminal
         """
-        obj_name = "xi" if phase_name == "Phase 1" else "z"
+        obj_name = "z"
         
         obj_val = self.M[self.num_constraints, 0]
         
@@ -121,8 +121,8 @@ class TwoPhases:
                     eq_str += f"  {sign} {coeff_str}{nb_var}"
             print(eq_str)
         print("\n")
-
-    def _run_simplex(self, obj_row: int, phase_name : str):
+    
+    def _run_simplex(self, obj_row: int):
         while True:
             c_in = self.find_entering_variable(obj_row)
             if c_in == -1:
@@ -134,59 +134,16 @@ class TwoPhases:
             
             self.pivot(r_out=r_out, c_in=c_in)
             if self.verbose:
-                self.print_dictionary(phase_name)
+                self.print_dictionary()
 
     def solve(self) -> dict:
         if self.verbose:
             print(f"---INITIAL STATUS: {self.status}---")
-            print(f"---Phase 1: Solving the support problem---")
-            self.print_dictionary("Phase 1")
+            print(f"---Simplex---")
+            self.print_dictionary()
 
-        r_out = np.argmin(self.M[:self.num_constraints, 0])
-        c_in = self.num_variables + 1
-        self.pivot(r_out, c_in)
+        self.status = self._run_simplex(obj_row=self.num_constraints)
 
-        if self.verbose:
-            print(">> After add x_0 to basis variables")
-            self.print_dictionary("Phase 1")
-        
-        self.status = self._run_simplex(obj_row=self.num_constraints, phase_name="Phase 1")
-
-        if self.status == "UNBOUNDED":
-            return {"status": "UNBOUNDED", "optimal_value": float("inf") if self.problem.is_from_max else float("-inf")}
-        
-        if self.M[self.num_constraints, 0] > 1e-9:
-            return {"status": "INFEASIBLE"}
-        
-        if "x_0" in self.basic_vars:
-            r_x0 = self.basic_vars.index("x_0")
-            pivoted = False
-            for j in range(1, self.M.shape[1]):
-                if abs(self.M[r_x0, j]) > 1e-9:
-                    self.pivot(r_x0, j)
-                    if self.verbose:
-                        self.print_dictionary("Phase 1")
-                    pivoted = True
-                    break
-            
-            if not pivoted:
-                self.M = np.delete(self.M, r_x0, axis=0)
-                self.basic_vars.pop(r_x0)
-                self.num_constraints -= 1
-
-        if "x_0" in self.non_basic_vars:
-            col_to_delete = self.non_basic_vars.index("x_0") + 1
-            self.M = np.delete(self.M, col_to_delete, axis=1)
-            self.non_basic_vars.remove("x_0")
-
-        self.M = np.delete(self.M, self.num_constraints, axis=0)
-        
-        if self.verbose:
-            print("---Phase 2: Simplex---")
-            self.print_dictionary("Phase 2")
-            
-        self.status = self._run_simplex(obj_row=self.num_constraints, phase_name="Phase 2")
-    
         if self.status == "UNBOUNDED":
             return {"status": "UNBOUNDED", "optimal_value": float("inf") if self.problem.is_from_max else float("-inf")}
 
