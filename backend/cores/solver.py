@@ -1,35 +1,74 @@
-from backend.cores import Standardizer, TwoPhases
+from enum import Enum
+
+from backend.cores import Standardizer, GraphicalSolver, Simplex, TwoPhases
 from backend.models import Problem, CanonicalProblem
 
+class SolverMethod(Enum):
+    """
+    DEFINE METHODS solving Linear Programming which are supported by system
+    """
+    AUTO = "auto"
+    SIMPLEX = "simplex"
+    GRAPHICAL = "graphical"
+
 class LPSolver:
-    def __init__(self, problem: Problem, bland=False, verbose: bool = True):
+    """
+    The Linear Programming Solver
+    """
+    def __init__(self, problem: Problem, method: SolverMethod = SolverMethod.AUTO, bland: bool = False, verbose = True):
+        """
+        :param problem: Original optimazation problem (Problem object)
+        :param method: Solving method (SolverMethod.AUTO, SolverMethod.SIMPLEX, SolverMethod.GRAPHICAL)
+        :param bland: Enable Bland's rule to prevent degeneracy (cycling) = True and otherwise
+        :param verbose: Enable printing tableau logs to the terminal = True
+        """
         self.problem = problem
-        self.standardizer = Standardizer()
+        self.method = method
         self.bland = bland
         self.verbose = verbose
-        self.results = {}
-    
+
     def solve(self) -> dict:
-        canonical_probem: CanonicalProblem = self.standardizer(self.problem)
-
         if self.verbose:
-            print("The information of the problem:\n")
+            print(f"\n[LPSolver] Problem received. Solving mode: {self.method.name}")
+            print(f"Original problem")
             print(self.problem)
-            print("The canonical problem:\n")
-            canonical_probem.show()
+
+        # Graphical Method
+        if self.method == SolverMethod.GRAPHICAL:
+            if len(self.problem.variables) != 2:
+                raise ValueError("The Graphical Method is only applicable to linear programming problems with exactly two variables.")
             
-        solver = TwoPhases(problem=canonical_probem, bland=self.bland, verbose=self.verbose)
-        result = solver.solve()
+            if self.verbose:
+                print(f"[Graphical Solver]")
 
-        if self.verbose:
-            print("=== FINAL RESULTS ===")
-            print(f"STATUS: {result['status']}")
+            graphical_solver = GraphicalSolver(self.problem, verbose=self.verbose)
+            results = graphical_solver.solve()
+            if self.verbose:
+                graphical_solver.plot_feasible_region(results)
+            return results
         
-            if result["status"] == "OPTIMAL":
-                print(f"optimal value (z): {result['optimal_value']}")
-                print("Solution:")
-                for var, val in result["solution"].items():
-                    print(f"  {var} = {val}")
+        elif self.method in [SolverMethod.AUTO, SolverMethod.SIMPLEX]:
+            if self.verbose:
+                print(f"[Standardizer]")
+                print("Normalize the original problem")
 
-        self.results.update(result)
-        return self.results
+            standardizer = Standardizer()
+            canonical_problem = standardizer(self.problem)
+
+            if self.verbose:
+                print("The canonical problem")
+                canonical_problem.show()
+
+            if canonical_problem.need_two_phases:
+                if self.verbose:
+                    print("[Two Phase Solver] Detected b_i < 0, routing to Two-Phase Solver")
+                solver = TwoPhases(problem=canonical_problem, bland=self.bland, verbose=self.verbose)
+
+            else:
+                if self.verbose:
+                    print("[Pure Simplex] Standard form detected. Routing to Pure Simplex Solver")
+                solver = Simplex(problem=canonical_problem, bland=self.bland, verbose=self.verbose)
+            return solver.solve()
+        
+        else:
+            raise ValueError("Invalid solving method. Please use the SolverMethod")
