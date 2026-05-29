@@ -143,62 +143,88 @@ class GraphicalSolver:
         }
     
     def plot_feasible_region(self, result: dict):
-        """
-        Plot the feasible polygon region and highlight the optimal solution.
-        Call this method ONLY AFTER running the solve() method.
-        """
         if result['status'] != "OPTIMAL":
             if self.verbose:
                 print("\n[Plot Error] Cannot plot the graph because the problem is Infeasible or Unbounded.")
-            return
+            return None  # ← trả về None rõ ràng thay vì return trống
 
-        # 1. Get the list of feasible vertices
-        # result['feasible_vertices'] contains tuples, we cast it to a numpy array for easier calculation
         pts = np.array(result['feasible_vertices'])
-        
-        # 2. Sort the vertices in counterclockwise order to prevent self-intersecting polygons
-        # Calculate the centroid of the polygon
+
+        # Sắp xếp đỉnh ngược chiều kim đồng hồ
         centroid = np.mean(pts, axis=0)
-        # Calculate the angle of each vertex relative to the centroid using arctan2
         angles = np.arctan2(pts[:, 1] - centroid[1], pts[:, 0] - centroid[0])
-        # Sort the points array by increasing angle
         sorted_pts = pts[np.argsort(angles)]
 
-        # 3. Initialize the plot
-        fig, ax = plt.subplots(figsize=(8, 6))
-        
-        # 4. Plot the feasible region (Light blue polygon)
-        poly = Polygon(sorted_pts, closed=True, facecolor='lightblue', edgecolor='blue', alpha=0.5, linewidth=2)
+        fig, ax = plt.subplots(figsize=(9, 7))
+
+        # ── Tính range để padding cân đối ──────────────────────────────────────
+        min_x, max_x = min(pts[:, 0]), max(pts[:, 0])
+        min_y, max_y = min(pts[:, 1]), max(pts[:, 1])
+        pad_x = max((max_x - min_x) * 0.25, 3.0)   # ít nhất 3 đơn vị
+        pad_y = max((max_y - min_y) * 0.25, 3.0)
+
+        x_lo, x_hi = min_x - pad_x, max_x + pad_x
+        y_lo, y_hi = min_y - pad_y, max_y + pad_y
+
+        # ── Vẽ các đường ràng buộc ─────────────────────────────────────────────
+        x_range = np.linspace(x_lo, x_hi, 400)
+        colors = plt.cm.tab10.colors  # bảng màu 10 màu phân biệt
+
+        for idx, c in enumerate(self.problem.constraints):
+            a1 = c.coeffs.get(self.var1.name, 0.0)
+            a2 = c.coeffs.get(self.var2.name, 0.0)
+            b  = c.right_hand_side
+            color = colors[idx % len(colors)]
+
+            if abs(a2) > 1e-9:
+                # x2 = (b - a1*x1) / a2
+                y_range = (b - a1 * x_range) / a2
+                label = (
+                    f"${a1:g}x_1 + {a2:g}x_2 {c.constraint_type.value} {b:g}$"
+                    .replace("+ -", "- ")
+                )
+                ax.plot(x_range, y_range, color=color, linewidth=1.5,
+                        linestyle='--', label=label)
+            elif abs(a1) > 1e-9:
+                # Đường thẳng đứng x1 = b/a1
+                x_val = b / a1
+                ax.axvline(x_val, color=color, linewidth=1.5, linestyle='--',
+                        label=f"$x_1 = {b/a1:g}$")
+
+        # ── Vẽ vùng khả thi ────────────────────────────────────────────────────
+        poly = Polygon(sorted_pts, closed=True,
+                    facecolor='lightblue', edgecolor='blue',
+                    alpha=0.45, linewidth=2, zorder=2)
         ax.add_patch(poly)
 
-        # 5. Plot the vertices on the graph
-        for pt in pts:
-            ax.plot(pt[0], pt[1], 'ko') # Black dot
-            # Add coordinate labels next to each vertex
-            ax.text(pt[0] + 0.5, pt[1] + 0.5, f"({pt[0]:.1f}, {pt[1]:.1f})", fontsize=10, color='black')
+        # ── Vẽ các đỉnh và nhãn ────────────────────────────────────────────────
+        offset_x = (x_hi - x_lo) * 0.025   # offset theo tỷ lệ scale
+        offset_y = (y_hi - y_lo) * 0.025
 
-        # 6. Highlight the Optimal Point
+        for pt in pts:
+            ax.plot(pt[0], pt[1], 'ko', markersize=6, zorder=4)
+            ax.text(pt[0] + offset_x, pt[1] + offset_y,
+                    f"({pt[0]:.2f}, {pt[1]:.2f})",
+                    fontsize=9, color='#222222', zorder=5)
+
+        # ── Highlight điểm tối ưu ──────────────────────────────────────────────
         opt_x = float(Fraction(result['solution'][self.var1.name]))
         opt_y = float(Fraction(result['solution'][self.var2.name]))
-        
-        ax.plot(opt_x, opt_y, 'ro', markersize=10, label=f"Optimal: z = {result['optimal_value']}")
+        ax.plot(opt_x, opt_y, 'r*', markersize=14, zorder=6,
+                label=f"Optimal: $z^* = {result['optimal_value']}$")
 
-        # 7. Decorate and format the coordinate axes
-        ax.set_title("Graphical Method: Feasible Region & Optimal Point", fontsize=14, fontweight='bold')
-        ax.set_xlabel(self.var1.name, fontsize=12)
-        ax.set_ylabel(self.var2.name, fontsize=12)
-        
-        # Set axis limits (Add padding so the graph isn't right against the edge)
-        max_x = max(pts[:, 0]) if len(pts) > 0 else 10
-        max_y = max(pts[:, 1]) if len(pts) > 0 else 10
-        ax.set_xlim(min(pts[:, 0]) - 5, max_x + 10)
-        ax.set_ylim(min(pts[:, 1]) - 5, max_y + 10)
-        
-        # Show grid and the 2 main coordinate axes (x=0, y=0)
-        ax.axhline(0, color='black', linewidth=1.5)
-        ax.axvline(0, color='black', linewidth=1.5)
-        ax.grid(True, linestyle='--', alpha=0.6)
-        ax.legend(loc="upper right", fontsize=12)
+        # ── Trục tọa độ, grid, giới hạn ────────────────────────────────────────
+        ax.axhline(0, color='black', linewidth=1.2)
+        ax.axvline(0, color='black', linewidth=1.2)
+        ax.set_xlim(x_lo, x_hi)
+        ax.set_ylim(y_lo, y_hi)
+        ax.grid(True, linestyle='--', alpha=0.5)
 
-        # Render the plot
-        plt.show()
+        ax.set_title("Graphical Method: Feasible Region & Optimal Point",
+                    fontsize=14, fontweight='bold')
+        ax.set_xlabel(f"${self.var1.name}$", fontsize=12)
+        ax.set_ylabel(f"${self.var2.name}$", fontsize=12)
+        ax.legend(loc="upper right", fontsize=9, framealpha=0.9)
+
+        fig.tight_layout()
+        return fig
