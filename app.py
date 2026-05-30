@@ -698,7 +698,7 @@ def render_constraints_section(n: int, m: int, var_names: list[str]) -> list:
                 lhs = _latex_expr({var_names[i]: row[i] for i in range(n)}, var_names)
                 r = int(rhs) if rhs == int(rhs) else rhs
                 lines.append(rf"  {lhs} &{ct_tex[ct_l]}& {r}")
-            joined_lines = r" \ ".join(lines)
+            joined_lines = r" \\\\ ".join(lines)
             st.latex(rf"\begin{{array}}{{rcl}} {joined_lines} \end{{array}}")
 
     return constraints_raw
