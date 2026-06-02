@@ -1013,13 +1013,6 @@ def render_result(result, captured_stdout, problem, settings,
         with col_sol:
             if solution:
                 st.markdown("**NGHIỆM TỐI ƯU**")
-                headers = " ".join(f"<th>{k}</th>" for k in solution)
-                values = " ".join(f"<td>{v}</td>" for v in solution.values())
-                st.markdown(
-                    f'<table class="sol-table"><thead><tr>{headers}</tr></thead>'
-                    f'<tbody><tr>{values}</tr></tbody></table>',
-                    unsafe_allow_html=True,
-                )
                 st.latex(r",\quad ".join([f"{k} = {v}" for k, v in solution.items()]))
     elif status == "INFEASIBLE":
         st.info("Bài toán không có miền chấp nhận được (vô nghiệm).")
