@@ -994,13 +994,13 @@ def render_result(result, captured_stdout, problem, settings,
                       
 # ── Status badge ──────────────────────────────────────────────────────────
 if status == "OPTIMAL":
-        st.success("✅ TỐI ƯU (OPTIMAL)")
-    elif status == "INFEASIBLE":
-        st.error("❌ VÔ NGHIỆM (INFEASIBLE)")
-    elif status == "UNBOUNDED":
-        st.warning("∞ KHÔNG BỊ CHẶN (UNBOUNDED)")
-    else:
-        st.info(f"Trạng thái: {status}")
+    st.success("✅ TỐI ƯU (OPTIMAL)")
+elif status == "INFEASIBLE":
+    st.error("❌ VÔ NGHIỆM (INFEASIBLE)")
+elif status == "UNBOUNDED":
+    st.warning("∞ KHÔNG BỊ CHẶN (UNBOUNDED)")
+else:
+    st.info(f"Trạng thái: {status}")
 
 # ── Optimal result ────────────────────────────────────────────────────────
 if status == "OPTIMAL":
