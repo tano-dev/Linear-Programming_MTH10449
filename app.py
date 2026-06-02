@@ -991,19 +991,19 @@ def render_result(result, captured_stdout, problem, settings,
     st.markdown("---")
     st.markdown("## 📊 Kết quả")
     status = result.get("status", "UNKNOWN")
-                      
-# ── Status badge ──────────────────────────────────────────────────────────
-if status == "OPTIMAL":
-    st.success("✅ TỐI ƯU (OPTIMAL)")
-elif status == "INFEASIBLE":
-    st.error("❌ VÔ NGHIỆM (INFEASIBLE)")
-elif status == "UNBOUNDED":
-    st.warning("∞ KHÔNG BỊ CHẶN (UNBOUNDED)")
-else:
-    st.info(f"Trạng thái: {status}")
 
-# ── Optimal result ────────────────────────────────────────────────────────
-if status == "OPTIMAL":
+    # ── Status badge ──────────────────────────────────────────────────────────
+    if status == "OPTIMAL":
+        st.success("✅ TỐI ƯU (OPTIMAL)")
+    elif status == "INFEASIBLE":
+        st.error("❌ VÔ NGHIỆM (INFEASIBLE)")
+    elif status == "UNBOUNDED":
+        st.warning("∞ KHÔNG BỊ CHẶN (UNBOUNDED)")
+    else:
+        st.info(f"Trạng thái: {status}")
+
+    # ── Optimal result ────────────────────────────────────────────────────────
+    if status == "OPTIMAL":
         opt_val = result.get("optimal_value", "N/A")
         solution = result.get("solution", {})
         col_val, col_sol = st.columns([1, 2])
@@ -1021,13 +1021,13 @@ if status == "OPTIMAL":
                     unsafe_allow_html=True,
                 )
                 st.latex(r",\quad ".join([f"{k} = {v}" for k, v in solution.items()]))
-            elif status == "INFEASIBLE":
-                st.info("Bài toán không có miền chấp nhận được (vô nghiệm).")
-            elif status == "UNBOUNDED":
-                st.info("Hàm mục tiêu không bị chặn — bài toán không có nghiệm hữu hạn.")
+    elif status == "INFEASIBLE":
+        st.info("Bài toán không có miền chấp nhận được (vô nghiệm).")
+    elif status == "UNBOUNDED":
+        st.info("Hàm mục tiêu không bị chặn — bài toán không có nghiệm hữu hạn.")
 
-# ── Full problem LaTeX preview ─────────────────────────────────────────────
-with st.expander("📄 Xem toàn bộ bài toán (LaTeX)"):
+    # ── Full problem LaTeX preview ─────────────────────────────────────────────
+    with st.expander("📄 Xem toàn bộ bài toán (LaTeX)"):
         obj_line = _build_objective_latex(obj_type, obj_coeffs, n)
         constraint_lines = _build_constraints_latex(constraints_raw, n)
         sign_line = _build_variable_signs_latex(var_signs, n)
@@ -1043,13 +1043,13 @@ with st.expander("📄 Xem toàn bộ bài toán (LaTeX)"):
         )
         st.latex(full_latex)
 
-# ── Verbose steps ─────────────────────────────────────────────────────────
-if settings["verbose"] and captured_stdout.strip():
+    # ── Verbose steps ─────────────────────────────────────────────────────────
+    if settings["verbose"] and captured_stdout.strip():
         with st.expander("📋 Xem các bước chạy chi tiết (Verbose)"):
             st.code(captured_stdout, language="text")
 
-# ── Graph (Graphical method) ───────────────────────────────────────────────
- if settings["method"] == SolverMethod.GRAPHICAL and status == "OPTIMAL":
+    # ── Graph (Graphical method) ───────────────────────────────────────────────
+    if settings["method"] == SolverMethod.GRAPHICAL and status == "OPTIMAL":
         st.markdown("### 📈 Đồ thị vùng khả thi")
         try:
             fig = GraphicalSolver(problem, verbose=False).plot_feasible_region(result)
@@ -1058,12 +1058,12 @@ if settings["verbose"] and captured_stdout.strip():
         except Exception as e:
             st.error(f"Lỗi khi vẽ đồ thị: {e}")
 
-# ── LaTeX Export ──────────────────────────────────────────────────────────
-st.markdown("---")
-st.markdown("### 📥 Xuất file LaTeX")
+    # ── LaTeX Export ──────────────────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown("### 📥 Xuất file LaTeX")
 
-# Nếu verbose chưa bật, chạy lại với verbose=True để lấy steps
-if not captured_stdout.strip():
+    # Nếu verbose chưa bật, chạy lại với verbose=True để lấy steps
+    if not captured_stdout.strip():
         try:
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf):
@@ -1089,7 +1089,6 @@ if not captured_stdout.strip():
     )
     with st.expander("👁 Xem nội dung file .tex"):
         st.code(latex_doc, language="latex")
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Main
