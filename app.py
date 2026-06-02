@@ -1021,10 +1021,10 @@ if status == "OPTIMAL":
                     unsafe_allow_html=True,
                 )
                 st.latex(r",\quad ".join([f"{k} = {v}" for k, v in solution.items()]))
-    elif status == "INFEASIBLE":
-        st.info("Bài toán không có miền chấp nhận được (vô nghiệm).")
-    elif status == "UNBOUNDED":
-        st.info("Hàm mục tiêu không bị chặn — bài toán không có nghiệm hữu hạn.")
+            elif status == "INFEASIBLE":
+                st.info("Bài toán không có miền chấp nhận được (vô nghiệm).")
+            elif status == "UNBOUNDED":
+                st.info("Hàm mục tiêu không bị chặn — bài toán không có nghiệm hữu hạn.")
 
 # ── Full problem LaTeX preview ─────────────────────────────────────────────
 with st.expander("📄 Xem toàn bộ bài toán (LaTeX)"):
