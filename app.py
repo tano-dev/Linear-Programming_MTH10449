@@ -713,7 +713,7 @@ def _build_objective_latex(obj_type: ObjectiveType, obj_coeffs: list[float], n: 
     for i, c in enumerate(obj_coeffs):
         if c == 0:
             continue
-        coeff_str = "" if abs(c) == 1 else _fmt_coeff(abs(c))
+        v = abs(c); coeff_str = "" if v == 1 else (str(int(v)) if float(v).is_integer() else str(round(v, 3)))
         term = f"{coeff_str}x_{{{i+1}}}"
         terms.append((c, term))
  
@@ -734,7 +734,7 @@ def _build_constraints_latex(constraints_raw: list, n: int) -> list[str]:
         for i, c in enumerate(row_coeffs):
             if c == 0:
                 continue
-            coeff_str = "" if abs(c) == 1 else _fmt_coeff(abs(c))
+            v = abs(c); coeff_str = "" if v == 1 else (str(int(v)) if float(v).is_integer() else str(round(v, 3)))
             term = f"{coeff_str}x_{{{i+1}}}"
             terms.append((c, term))
  
@@ -746,7 +746,8 @@ def _build_constraints_latex(constraints_raw: list, n: int) -> list[str]:
                 expr += f" - {t}" if c < 0 else f" + {t}"
  
         sign = "\\leq" if ct == ConstraintType.LE else "\\geq" if ct == ConstraintType.GE else "="
-        lines.append(f"    & {expr} {sign} {_fmt_coeff(rhs)}")
+        rhs_str = str(int(rhs)) if float(rhs).is_integer() else str(round(rhs, 3))
+        lines.append(f"    & {expr} {sign} {rhs_str}")
     return lines
  
  
@@ -987,6 +988,21 @@ def solve_problem(problem, settings) -> tuple[dict, str]:
 # ─────────────────────────────────────────────────────────────────────────────
 def render_result(result, captured_stdout, problem, settings,
                   n, var_signs, obj_type, obj_coeffs, constraints_raw):
+     with st.expander("📄 Xem toàn bộ bài giải (LaTeX)"):
+        obj_line = _build_objective_latex(obj_type, obj_coeffs, n)
+        constraint_lines = _build_constraints_latex(constraints_raw, n)
+        sign_line = _build_variable_signs_latex(var_signs, n)
+        constraints_tex = " \\\\\n".join(constraint_lines)
+        sign_part = rf"\\ & {sign_line.strip()}" if sign_line else ""
+        full_latex = (
+            rf"\begin{{alignat*}}{{2}}"
+            + "\n" + obj_line + r" \\"
+            + "\n" + r"  \text{s.t.} \quad"
+            + "\n" + constraints_tex
+            + "\n" + sign_part
+            + "\n" + r"\end{alignat*}"
+        )
+        st.latex(full_latex)
     st.markdown("---")
     st.markdown("## 📊 Kết quả")
  
