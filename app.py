@@ -703,7 +703,255 @@ def render_constraints_section(n: int, m: int, var_names: list[str]) -> list:
 
     return constraints_raw
 
-
+# ══════════════════════════════════════════════════════════════════════════════
+# LATEX EXPORT
+# ══════════════════════════════════════════════════════════════════════════════
+def _build_objective_latex(obj_type: ObjectiveType, obj_coeffs: list[float], n: int) -> str:
+    """Build LaTeX string for objective function."""
+    direction = "\\max" if obj_type == ObjectiveType.MAX else "\\min"
+    terms = []
+    for i, c in enumerate(obj_coeffs):
+        if c == 0:
+            continue
+        coeff_str = "" if abs(c) == 1 else _fmt_coeff(abs(c))
+        term = f"{coeff_str}x_{{{i+1}}}"
+        terms.append((c, term))
+ 
+    if not terms:
+        expr = "0"
+    else:
+        expr = ("-" if terms[0][0] < 0 else "") + terms[0][1]
+        for c, t in terms[1:]:
+            expr += f" - {t}" if c < 0 else f" + {t}"
+    return f"  {direction} \\quad z &= {expr}"
+ 
+ 
+def _build_constraints_latex(constraints_raw: list, n: int) -> list[str]:
+    """Build LaTeX lines for constraints."""
+    lines = []
+    for row_coeffs, ct, rhs in constraints_raw:
+        terms = []
+        for i, c in enumerate(row_coeffs):
+            if c == 0:
+                continue
+            coeff_str = "" if abs(c) == 1 else _fmt_coeff(abs(c))
+            term = f"{coeff_str}x_{{{i+1}}}"
+            terms.append((c, term))
+ 
+        if not terms:
+            expr = "0"
+        else:
+            expr = ("-" if terms[0][0] < 0 else "") + terms[0][1]
+            for c, t in terms[1:]:
+                expr += f" - {t}" if c < 0 else f" + {t}"
+ 
+        sign = "\\leq" if ct == ConstraintType.LE else "\\geq" if ct == ConstraintType.GE else "="
+        lines.append(f"    & {expr} {sign} {_fmt_coeff(rhs)}")
+    return lines
+ 
+ 
+def _build_variable_signs_latex(var_signs: list[VariableSign], n: int) -> str:
+    """Build LaTeX for variable sign conditions."""
+    nn = [f"x_{{{i+1}}}" for i, s in enumerate(var_signs) if s == VariableSign.NON_NEGATIVE]
+    np_ = [f"x_{{{i+1}}}" for i, s in enumerate(var_signs) if s == VariableSign.NON_POSITIVE]
+    fr = [f"x_{{{i+1}}}" for i, s in enumerate(var_signs) if s == VariableSign.FREE]
+ 
+    parts = []
+    if nn:
+        parts.append(", ".join(nn) + " \\geq 0")
+    if np_:
+        parts.append(", ".join(np_) + " \\leq 0")
+    if fr:
+        parts.append(", ".join(fr) + " \\text{ tự do}")
+    return " \\quad " + ", \\quad ".join(parts) if parts else ""
+ 
+ 
+def _parse_verbose_to_latex(verbose_text: str) -> str:
+    """
+    Convert captured verbose stdout (simplex dictionary steps) into LaTeX.
+    Each dictionary block is wrapped in a verbatim environment for readability.
+    """
+    if not verbose_text.strip():
+        return ""
+ 
+    lines = verbose_text.split("\n")
+    latex_blocks = []
+    current_block = []
+ 
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("---") or stripped.startswith(">>>"):
+            if current_block:
+                latex_blocks.append("\n".join(current_block))
+                current_block = []
+            # Section header
+            clean = stripped.replace("---", "").strip()
+            if clean:
+                latex_blocks.append(f"HEADER:{clean}")
+        else:
+            current_block.append(line)
+ 
+    if current_block:
+        latex_blocks.append("\n".join(current_block))
+ 
+    result_parts = []
+    for block in latex_blocks:
+        if block.startswith("HEADER:"):
+            title = block[7:]
+            result_parts.append(f"\n\\subsubsection*{{{_escape_latex(title)}}}\n")
+        elif block.strip():
+            result_parts.append(
+                "\\begin{verbatim}\n" + block + "\n\\end{verbatim}\n"
+            )
+ 
+    return "\n".join(result_parts)
+ 
+ 
+def _escape_latex(text: str) -> str:
+    """Escape special LaTeX characters."""
+    replacements = [
+        ("\\", "\\textbackslash{}"),
+        ("&", "\\&"), ("%", "\\%"), ("$", "\\$"),
+        ("#", "\\#"), ("_", "\\_"), ("{", "\\{"),
+        ("}", "\\}"), ("~", "\\textasciitilde{}"),
+        ("^", "\\textasciicircum{}"),
+    ]
+    for old, new in replacements:
+        text = text.replace(old, new)
+    return text
+ 
+ 
+def generate_latex_document(
+    n: int,
+    var_signs: list,
+    obj_type: ObjectiveType,
+    obj_coeffs: list[float],
+    constraints_raw: list,
+    result: dict,
+    verbose_text: str,
+    method_label: str,
+) -> str:
+    """
+    Generate a complete LaTeX document with:
+    - Problem formulation
+    - Solution steps (from verbose output)
+    - Optimal solution
+    """
+    obj_line = _build_objective_latex(obj_type, obj_coeffs, n)
+    constraint_lines = _build_constraints_latex(constraints_raw, n)
+    sign_line = _build_variable_signs_latex(var_signs, n)
+ 
+    constraints_tex = " \\\\\n".join(constraint_lines)
+    if sign_line:
+        constraints_tex += " \\\\\n    & " + sign_line.strip()
+ 
+    status = result.get("status", "UNKNOWN")
+    status_vn = {
+        "OPTIMAL": "Tối ưu (Optimal)",
+        "INFEASIBLE": "Vô nghiệm (Infeasible)",
+        "UNBOUNDED": "Không bị chặn (Unbounded)",
+    }.get(status, status)
+ 
+    # Build result section
+    result_tex = ""
+    if status == "OPTIMAL":
+        opt_val = result.get("optimal_value", "N/A")
+        solution = result.get("solution", {})
+        sol_items = ", \\quad ".join([f"x_{{{k[1:]}}} = {v}" if k.startswith("x") else f"{_escape_latex(k)} = {v}"
+                                      for k, v in solution.items()])
+        result_tex = f"""
+\\subsection*{{Nghiệm tối ưu}}
+ 
+Giá trị tối ưu:
+\\[
+  z^* = {opt_val}
+\\]
+ 
+Nghiệm:
+\\[
+  {sol_items}
+\\]
+"""
+    elif status == "INFEASIBLE":
+        result_tex = "\n\\subsection*{Kết quả}\nBài toán vô nghiệm — miền chấp nhận được rỗng.\n"
+    elif status == "UNBOUNDED":
+        result_tex = "\n\\subsection*{Kết quả}\nHàm mục tiêu không bị chặn — bài toán không có nghiệm hữu hạn.\n"
+ 
+    # Build steps section from verbose output
+    steps_tex = ""
+    parsed_steps = _parse_verbose_to_latex(verbose_text)
+    if parsed_steps:
+        steps_tex = f"""
+\\subsection*{{Các bước giải chi tiết}}
+ 
+{parsed_steps}
+"""
+    else:
+        steps_tex = """
+\\subsection*{Các bước giải chi tiết}
+ 
+\\textit{Bật tùy chọn "Hiển thị các bước chi tiết" (Verbose) trên giao diện để xem từng bước của thuật toán.}
+"""
+ 
+    doc = rf"""\documentclass[12pt, a4paper]{{article}}
+ 
+% ── Packages ──────────────────────────────────────────────────────────────
+\usepackage[utf8]{{inputenc}}
+\usepackage[T5]{{fontenc}}
+\usepackage[vietnamese]{{babel}}
+\usepackage{{amsmath, amssymb}}
+\usepackage{{geometry}}
+\usepackage{{booktabs}}
+\usepackage{{xcolor}}
+\usepackage{{fancyhdr}}
+\usepackage{{titlesec}}
+\usepackage{{parskip}}
+ 
+\geometry{{margin=2.5cm}}
+ 
+% ── Header / Footer ───────────────────────────────────────────────────────
+\pagestyle{{fancy}}
+\fancyhf{{}}
+\rhead{{LP Solver}}
+\lhead{{Quy hoạch tuyến tính}}
+\cfoot{{\thepage}}
+ 
+% ── Title style ───────────────────────────────────────────────────────────
+\titleformat{{\section}}{{\large\bfseries\color{{blue!60!black}}}}{{}}{{0em}}{{}}[\titlerule]
+ 
+\begin{{document}}
+ 
+% ── Title ─────────────────────────────────────────────────────────────────
+\begin{{center}}
+  {{\Large\bfseries Bài toán Quy hoạch Tuyến tính}} \\[6pt]
+  {{\normalsize Phương pháp: {method_label}}} \\[4pt]
+  {{\small\color{{gray}} Trạng thái: {status_vn}}}
+\end{{center}}
+ 
+\vspace{{1em}}
+\hrule
+\vspace{{1.5em}}
+ 
+% ── Problem Formulation ───────────────────────────────────────────────────
+\section*{{Đề bài}}
+ 
+\begin{{alignat*}}{{2}}
+{obj_line} \\
+  \text{{s.t.}} \quad
+{constraints_tex}
+\end{{alignat*}}
+ 
+% ── Steps ─────────────────────────────────────────────────────────────────
+\section*{{Lời giải}}
+{steps_tex}
+ 
+% ── Result ────────────────────────────────────────────────────────────────
+\section*{{Kết quả}}
+{result_tex}
+ 
+\end{{document}}
+"""
+    return doc
 # ─────────────────────────────────────────────────────────────────────────────
 # Problem builder & solver
 # ─────────────────────────────────────────────────────────────────────────────
@@ -737,122 +985,130 @@ def solve_problem(problem, settings) -> tuple[dict, str]:
 # ─────────────────────────────────────────────────────────────────────────────
 # Result rendering
 # ─────────────────────────────────────────────────────────────────────────────
-def render_result(result: dict, captured: str, problem, settings, var_names: list[str]):
+def render_result(result, captured_stdout, problem, settings,
+                  n, var_signs, obj_type, obj_coeffs, constraints_raw):
+    st.markdown("---")
+    st.markdown("## 📊 Kết quả")
+ 
     status = result.get("status", "UNKNOWN")
-
-    st.markdown('<div class="result-wrapper">', unsafe_allow_html=True)
-    st.markdown('<div class="result-heading">Kết quả</div>', unsafe_allow_html=True)
-
-    pill_info = {
-        "OPTIMAL":    ("pill-optimal",    "✓ Tối ưu (Optimal)"),
-        "INFEASIBLE": ("pill-infeasible", "✗ Vô nghiệm (Infeasible)"),
-        "UNBOUNDED":  ("pill-unbounded",  "∞ Không bị chặn (Unbounded)"),
-    }
-    pill_cls, pill_txt = pill_info.get(status, ("pill-optimal", status))
-    st.markdown(
-        f'<div class="status-pill {pill_cls}">{pill_txt}</div>',
-        unsafe_allow_html=True
-    )
-
+ 
+    # ── Status badge ──────────────────────────────────────────────────────────
     if status == "OPTIMAL":
-        opt_val = result.get("optimal_value", "—")
-        solution = result.get("solution", {})
-
-        col1, col2 = st.columns([1, 2])
-        with col1:
-            st.markdown('<div class="result-card">', unsafe_allow_html=True)
-            st.markdown(
-                f'<div class="result-zstar">Giá trị tối ưu &nbsp; <span>z* = {opt_val}</span></div>',
-                unsafe_allow_html=True
-            )
-            # LaTeX
-            try:
-                zstar_tex = rf"z^* = {opt_val}"
-                st.latex(zstar_tex)
-            except Exception:
-                pass
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        with col2:
-            st.markdown('<div class="result-card">', unsafe_allow_html=True)
-            st.markdown(
-                '<p style="font-size:0.72rem;font-weight:600;letter-spacing:0.1em;'
-                'text-transform:uppercase;color:var(--ink-3);margin:0 0 10px;">Nghiệm tối ưu</p>',
-                unsafe_allow_html=True
-            )
-            if solution:
-                headers = "".join(f"<th>{k}</th>" for k in solution)
-                values  = "".join(f"<td>{v}</td>" for v in solution.values())
-                st.markdown(
-                    f'<div class="result-table-wrap">'
-                    f'<table class="result-table">'
-                    f'<thead><tr>{headers}</tr></thead>'
-                    f'<tbody><tr>{values}</tr></tbody>'
-                    f'</table></div>',
-                    unsafe_allow_html=True
-                )
-                # Inline LaTeX
-                latex_sol = r",\quad ".join(
-                    [f"{k} = {v}" for k, v in solution.items()]
-                )
-                st.latex(latex_sol)
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        # Feasible vertices (Graphical)
-        if "feasible_vertices" in result:
-            verts = result["feasible_vertices"]
-            st.markdown('<div class="result-card" style="margin-top:0.25rem">', unsafe_allow_html=True)
-            st.markdown(
-                '<p style="font-size:0.72rem;font-weight:600;letter-spacing:0.1em;'
-                'text-transform:uppercase;color:var(--ink-3);margin:0 0 10px;">'
-                'Các đỉnh vùng khả thi</p>',
-                unsafe_allow_html=True
-            )
-            rows_html = "".join(
-                f"<tr><td>({v[0]:.4g}, {v[1]:.4g})</td></tr>" for v in verts
-            )
-            st.markdown(
-                f'<table class="result-table">'
-                f'<thead><tr><th>Điểm (x₁, x₂)</th></tr></thead>'
-                f'<tbody>{rows_html}</tbody></table>',
-                unsafe_allow_html=True
-            )
-            st.markdown('</div>', unsafe_allow_html=True)
-
+        st.success("✅ TỐI ƯU (OPTIMAL)")
     elif status == "INFEASIBLE":
-        st.markdown(
-            '<div class="result-card"><p style="color:var(--ink-2);margin:0;">'
-            'Bài toán không có miền chấp nhận được — hệ ràng buộc mâu thuẫn nhau.</p></div>',
-            unsafe_allow_html=True
-        )
+        st.error("❌ VÔ NGHIỆM (INFEASIBLE)")
     elif status == "UNBOUNDED":
-        st.markdown(
-            '<div class="result-card"><p style="color:var(--ink-2);margin:0;">'
-            'Hàm mục tiêu không bị chặn — bài toán không có nghiệm hữu hạn.</p></div>',
-            unsafe_allow_html=True
+        st.warning("∞ KHÔNG BỊ CHẶN (UNBOUNDED)")
+    else:
+        st.info(f"Trạng thái: {status}")
+ 
+    # ── Optimal result ────────────────────────────────────────────────────────
+    if status == "OPTIMAL":
+        opt_val = result.get("optimal_value", "N/A")
+        solution = result.get("solution", {})
+ 
+        col_val, col_sol = st.columns([1, 2])
+ 
+        with col_val:
+            st.markdown("**Giá trị tối ưu**")
+            st.latex(rf"z^* = {opt_val}")
+ 
+        with col_sol:
+            if solution:
+                st.markdown("**NGHIỆM TỐI ƯU**")
+                headers = " ".join(f"<th>{k}</th>" for k in solution)
+                values  = " ".join(f"<td>{v}</td>" for v in solution.values())
+                st.markdown(
+                    f'<table class="sol-table"><thead><tr>{headers}</tr></thead>'
+                    f'<tbody><tr>{values}</tr></tbody></table>',
+                    unsafe_allow_html=True,
+                )
+                st.latex(r",\quad ".join([f"{k} = {v}" for k, v in solution.items()]))
+ 
+    elif status == "INFEASIBLE":
+        st.info("Bài toán không có miền chấp nhận được (vô nghiệm).")
+    elif status == "UNBOUNDED":
+        st.info("Hàm mục tiêu không bị chặn — bài toán không có nghiệm hữu hạn.")
+ 
+    # ── Full problem LaTeX preview ─────────────────────────────────────────────
+    with st.expander("📄 Xem toàn bộ bài toán (LaTeX)"):
+        obj_line = _build_objective_latex(obj_type, obj_coeffs, n)
+        constraint_lines = _build_constraints_latex(constraints_raw, n)
+        sign_line = _build_variable_signs_latex(var_signs, n)
+        constraints_tex = " \\\\\n".join(constraint_lines)
+        sign_part = ""
+        if sign_line:
+            sign_part = rf"\\ & {sign_line.strip()}"
+        full_latex = (
+            rf"\begin{{alignat*}}{{2}}"
+            + "\n" + obj_line + r" \\"
+            + "\n" + r"  \text{s.t.} \quad"
+            + "\n" + constraints_tex
+            + "\n" + sign_part
+            + "\n" + r"\end{alignat*}"
         )
-
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # Verbose steps
-    if settings["verbose"] and captured.strip():
-        with st.expander("Xem các bước chi tiết"):
-            st.code(captured, language="text")
-
-    # Graph plot
+        st.latex(full_latex)
+ 
+    # ── Verbose steps ─────────────────────────────────────────────────────────
+    if settings["verbose"] and captured_stdout.strip():
+        with st.expander("📋 Xem các bước chạy chi tiết (Verbose)"):
+            st.code(captured_stdout, language="text")
+ 
+    # ── Graph (Graphical method) ───────────────────────────────────────────────
     if settings["method"] == SolverMethod.GRAPHICAL and status == "OPTIMAL":
-        st.markdown("---")
-        st.markdown(
-            '<p style="font-family:\'EB Garamond\',serif;font-size:1.2rem;'
-            'font-weight:500;color:var(--ink);">Đồ thị vùng khả thi</p>',
-            unsafe_allow_html=True
-        )
+        st.markdown("### 📈 Đồ thị vùng khả thi")
         try:
             fig = GraphicalSolver(problem, verbose=False).plot_feasible_region(result)
-            if fig:
+            if fig is not None:
                 st.pyplot(fig)
+            else:
+                st.warning("Hàm `plot_feasible_region` chưa được sửa để `return fig`.")
         except Exception as e:
-            st.error(f"Lỗi vẽ đồ thị: {e}")
+            st.error(f"Lỗi khi vẽ đồ thị: {e}")
+ 
+    # ── LaTeX Export ──────────────────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown("### 📥 Xuất file LaTeX")
+ 
+    # Nếu verbose chưa bật, chạy lại với verbose=True để lấy steps
+    if not captured_stdout.strip():
+        try:
+            verbose_solver = LPSolver(
+                problem=problem,
+                method=settings["method"],
+                bland=settings["bland"],
+                verbose=True,
+            )
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                verbose_solver.solve()
+            verbose_for_export = buf.getvalue()
+        except Exception:
+            verbose_for_export = ""
+    else:
+        verbose_for_export = captured_stdout
+ 
+    latex_doc = generate_latex_document(
+        n=n,
+        var_signs=var_signs,
+        obj_type=obj_type,
+        obj_coeffs=obj_coeffs,
+        constraints_raw=constraints_raw,
+        result=result,
+        verbose_text=verbose_for_export,
+        method_label=settings["method_label"],
+    )
+ 
+    st.download_button(
+        label="⬇️ Tải file .tex",
+        data=latex_doc.encode("utf-8"),
+        file_name="lp_solution.tex",
+        mime="text/plain",
+        type="primary",
+    )
+ 
+    with st.expander("👁 Xem nội dung file .tex"):
+        st.code(latex_doc, language="latex")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -938,7 +1194,9 @@ def main():
             try:
                 problem = build_problem(n, var_signs, obj_type, obj_coeffs, constraints_raw)
                 result, captured = solve_problem(problem, settings)
-                render_result(result, captured, problem, settings, var_names)
+                render_result(result, captured, problem, settings,
+                  n, var_signs, obj_type, obj_coeffs, constraints_raw)
+
             except Exception as e:
                 st.error(f"Lỗi: {e}")
                 import traceback
