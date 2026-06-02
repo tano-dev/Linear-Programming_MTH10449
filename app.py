@@ -987,144 +987,144 @@ def solve_problem(problem, settings) -> tuple[dict, str]:
 # Result rendering
 # ─────────────────────────────────────────────────────────────────────────────
 def render_result(result, captured_stdout, problem, settings,
-                  n, var_signs, obj_type, obj_coeffs, constraints_raw):
-     with st.expander("📄 Xem toàn bộ bài giải (LaTeX)"):
-        obj_line = _build_objective_latex(obj_type, obj_coeffs, n)
-        constraint_lines = _build_constraints_latex(constraints_raw, n)
-        sign_line = _build_variable_signs_latex(var_signs, n)
-        constraints_tex = " \\\\\n".join(constraint_lines)
-        sign_part = rf"\\ & {sign_line.strip()}" if sign_line else ""
-        full_latex = (
-            rf"\begin{{alignat*}}{{2}}"
-            + "\n" + obj_line + r" \\"
-            + "\n" + r"  \text{s.t.} \quad"
-            + "\n" + constraints_tex
-            + "\n" + sign_part
-            + "\n" + r"\end{alignat*}"
-        )
-        st.latex(full_latex)
-    st.markdown("---")
-    st.markdown("## 📊 Kết quả")
- 
-    status = result.get("status", "UNKNOWN")
- 
-    # ── Status badge ──────────────────────────────────────────────────────────
-    if status == "OPTIMAL":
-        st.success("✅ TỐI ƯU (OPTIMAL)")
-    elif status == "INFEASIBLE":
-        st.error("❌ VÔ NGHIỆM (INFEASIBLE)")
-    elif status == "UNBOUNDED":
-        st.warning("∞ KHÔNG BỊ CHẶN (UNBOUNDED)")
-    else:
-        st.info(f"Trạng thái: {status}")
- 
-    # ── Optimal result ────────────────────────────────────────────────────────
-    if status == "OPTIMAL":
-        opt_val = result.get("optimal_value", "N/A")
-        solution = result.get("solution", {})
- 
-        col_val, col_sol = st.columns([1, 2])
- 
-        with col_val:
-            st.markdown("**Giá trị tối ưu**")
-            st.latex(rf"z^* = {opt_val}")
- 
-        with col_sol:
-            if solution:
-                st.markdown("**NGHIỆM TỐI ƯU**")
-                headers = " ".join(f"<th>{k}</th>" for k in solution)
-                values  = " ".join(f"<td>{v}</td>" for v in solution.values())
-                st.markdown(
-                    f'<table class="sol-table"><thead><tr>{headers}</tr></thead>'
-                    f'<tbody><tr>{values}</tr></tbody></table>',
-                    unsafe_allow_html=True,
-                )
-                st.latex(r",\quad ".join([f"{k} = {v}" for k, v in solution.items()]))
- 
-    elif status == "INFEASIBLE":
-        st.info("Bài toán không có miền chấp nhận được (vô nghiệm).")
-    elif status == "UNBOUNDED":
-        st.info("Hàm mục tiêu không bị chặn — bài toán không có nghiệm hữu hạn.")
- 
-    # ── Full problem LaTeX preview ─────────────────────────────────────────────
-    with st.expander("📄 Xem toàn bộ bài toán (LaTeX)"):
-        obj_line = _build_objective_latex(obj_type, obj_coeffs, n)
-        constraint_lines = _build_constraints_latex(constraints_raw, n)
-        sign_line = _build_variable_signs_latex(var_signs, n)
-        constraints_tex = " \\\\\n".join(constraint_lines)
-        sign_part = ""
-        if sign_line:
-            sign_part = rf"\\ & {sign_line.strip()}"
-        full_latex = (
-            rf"\begin{{alignat*}}{{2}}"
-            + "\n" + obj_line + r" \\"
-            + "\n" + r"  \text{s.t.} \quad"
-            + "\n" + constraints_tex
-            + "\n" + sign_part
-            + "\n" + r"\end{alignat*}"
-        )
-        st.latex(full_latex)
- 
-    # ── Verbose steps ─────────────────────────────────────────────────────────
-    if settings["verbose"] and captured_stdout.strip():
-        with st.expander("📋 Xem các bước chạy chi tiết (Verbose)"):
-            st.code(captured_stdout, language="text")
- 
-    # ── Graph (Graphical method) ───────────────────────────────────────────────
-    if settings["method"] == SolverMethod.GRAPHICAL and status == "OPTIMAL":
-        st.markdown("### 📈 Đồ thị vùng khả thi")
-        try:
-            fig = GraphicalSolver(problem, verbose=False).plot_feasible_region(result)
-            if fig is not None:
-                st.pyplot(fig)
-            else:
-                st.warning("Hàm `plot_feasible_region` chưa được sửa để `return fig`.")
-        except Exception as e:
-            st.error(f"Lỗi khi vẽ đồ thị: {e}")
- 
-    # ── LaTeX Export ──────────────────────────────────────────────────────────
-    st.markdown("---")
-    st.markdown("### 📥 Xuất file LaTeX")
- 
-    # Nếu verbose chưa bật, chạy lại với verbose=True để lấy steps
-    if not captured_stdout.strip():
-        try:
-            verbose_solver = LPSolver(
-                problem=problem,
-                method=settings["method"],
-                bland=settings["bland"],
-                verbose=True,
-            )
-            buf = io.StringIO()
-            with contextlib.redirect_stdout(buf):
-                verbose_solver.solve()
-            verbose_for_export = buf.getvalue()
-        except Exception:
-            verbose_for_export = ""
-    else:
-        verbose_for_export = captured_stdout
- 
-    latex_doc = generate_latex_document(
-        n=n,
-        var_signs=var_signs,
-        obj_type=obj_type,
-        obj_coeffs=obj_coeffs,
-        constraints_raw=constraints_raw,
-        result=result,
-        verbose_text=verbose_for_export,
-        method_label=settings["method_label"],
-    )
- 
-    st.download_button(
-        label="⬇️ Tải file .tex",
-        data=latex_doc.encode("utf-8"),
-        file_name="lp_solution.tex",
-        mime="text/plain",
-        type="primary",
-    )
- 
-    with st.expander("👁 Xem nội dung file .tex"):
-        st.code(latex_doc, language="latex")
+  n, var_signs, obj_type, obj_coeffs, constraints_raw):
+with st.expander("📄 Xem toàn bộ bài giải (LaTeX)"):
+obj_line = _build_objective_latex(obj_type, obj_coeffs, n)
+constraint_lines = _build_constraints_latex(constraints_raw, n)
+sign_line = _build_variable_signs_latex(var_signs, n)
+constraints_tex = " \\\\\n".join(constraint_lines)
+sign_part = rf"\\ & {sign_line.strip()}" if sign_line else ""
+full_latex = (
+rf"\begin{{alignat*}}{{2}}"
++ "\n" + obj_line + r" \\"
++ "\n" + r"  \text{s.t.} \quad"
++ "\n" + constraints_tex
++ "\n" + sign_part
++ "\n" + r"\end{alignat*}"
+)
+st.latex(full_latex)
+st.markdown("---")
+st.markdown("## 📊 Kết quả")
+
+status = result.get("status", "UNKNOWN")
+
+# ── Status badge ──────────────────────────────────────────────────────────
+if status == "OPTIMAL":
+st.success("✅ TỐI ƯU (OPTIMAL)")
+elif status == "INFEASIBLE":
+st.error("❌ VÔ NGHIỆM (INFEASIBLE)")
+elif status == "UNBOUNDED":
+st.warning("∞ KHÔNG BỊ CHẶN (UNBOUNDED)")
+else:
+st.info(f"Trạng thái: {status}")
+
+# ── Optimal result ────────────────────────────────────────────────────────
+if status == "OPTIMAL":
+opt_val = result.get("optimal_value", "N/A")
+solution = result.get("solution", {})
+
+col_val, col_sol = st.columns([1, 2])
+
+with col_val:
+st.markdown("**Giá trị tối ưu**")
+st.latex(rf"z^* = {opt_val}")
+
+with col_sol:
+if solution:
+st.markdown("**NGHIỆM TỐI ƯU**")
+headers = " ".join(f"<th>{k}</th>" for k in solution)
+values  = " ".join(f"<td>{v}</td>" for v in solution.values())
+st.markdown(
+    f'<table class="sol-table"><thead><tr>{headers}</tr></thead>'
+    f'<tbody><tr>{values}</tr></tbody></table>',
+    unsafe_allow_html=True,
+)
+st.latex(r",\quad ".join([f"{k} = {v}" for k, v in solution.items()]))
+
+elif status == "INFEASIBLE":
+st.info("Bài toán không có miền chấp nhận được (vô nghiệm).")
+elif status == "UNBOUNDED":
+st.info("Hàm mục tiêu không bị chặn — bài toán không có nghiệm hữu hạn.")
+
+# ── Full problem LaTeX preview ─────────────────────────────────────────────
+with st.expander("📄 Xem toàn bộ bài toán (LaTeX)"):
+obj_line = _build_objective_latex(obj_type, obj_coeffs, n)
+constraint_lines = _build_constraints_latex(constraints_raw, n)
+sign_line = _build_variable_signs_latex(var_signs, n)
+constraints_tex = " \\\\\n".join(constraint_lines)
+sign_part = ""
+if sign_line:
+sign_part = rf"\\ & {sign_line.strip()}"
+full_latex = (
+rf"\begin{{alignat*}}{{2}}"
++ "\n" + obj_line + r" \\"
++ "\n" + r"  \text{s.t.} \quad"
++ "\n" + constraints_tex
++ "\n" + sign_part
++ "\n" + r"\end{alignat*}"
+)
+st.latex(full_latex)
+
+# ── Verbose steps ─────────────────────────────────────────────────────────
+if settings["verbose"] and captured_stdout.strip():
+with st.expander("📋 Xem các bước chạy chi tiết (Verbose)"):
+st.code(captured_stdout, language="text")
+
+# ── Graph (Graphical method) ───────────────────────────────────────────────
+if settings["method"] == SolverMethod.GRAPHICAL and status == "OPTIMAL":
+st.markdown("### 📈 Đồ thị vùng khả thi")
+try:
+fig = GraphicalSolver(problem, verbose=False).plot_feasible_region(result)
+if fig is not None:
+st.pyplot(fig)
+else:
+st.warning("Hàm `plot_feasible_region` chưa được sửa để `return fig`.")
+except Exception as e:
+st.error(f"Lỗi khi vẽ đồ thị: {e}")
+
+# ── LaTeX Export ──────────────────────────────────────────────────────────
+st.markdown("---")
+st.markdown("### 📥 Xuất file LaTeX")
+
+# Nếu verbose chưa bật, chạy lại với verbose=True để lấy steps
+if not captured_stdout.strip():
+try:
+verbose_solver = LPSolver(
+problem=problem,
+method=settings["method"],
+bland=settings["bland"],
+verbose=True,
+)
+buf = io.StringIO()
+with contextlib.redirect_stdout(buf):
+verbose_solver.solve()
+verbose_for_export = buf.getvalue()
+except Exception:
+verbose_for_export = ""
+else:
+verbose_for_export = captured_stdout
+
+latex_doc = generate_latex_document(
+n=n,
+var_signs=var_signs,
+obj_type=obj_type,
+obj_coeffs=obj_coeffs,
+constraints_raw=constraints_raw,
+result=result,
+verbose_text=verbose_for_export,
+method_label=settings["method_label"],
+)
+
+st.download_button(
+label="⬇️ Tải file .tex",
+data=latex_doc.encode("utf-8"),
+file_name="lp_solution.tex",
+mime="text/plain",
+type="primary",
+)
+
+with st.expander("👁 Xem nội dung file .tex"):
+st.code(latex_doc, language="latex")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
