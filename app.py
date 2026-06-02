@@ -1026,13 +1026,29 @@ def render_result(result, captured_stdout, problem, settings,
     elif status == "UNBOUNDED":
         st.info("Hàm mục tiêu không bị chặn — bài toán không có nghiệm hữu hạn.")
 
-     # ── Verbose steps (luôn hiển thị nếu có) ─────────────────────────────────
-    if captured_stdout.strip():
-        st.markdown("### 📋 Các bước giải chi tiết")
-        st.code(captured_stdout, language="text")
-    else:
-        st.info("💡 Bật **'Hiển thị các bước chi tiết'** ở sidebar để xem từng bước giải.")
-        
+    # ── Full problem LaTeX preview + các bước giải ────────────────────────────
+    with st.expander("📄 Xem toàn bộ bài toán (LaTeX)"):
+        obj_line = _build_objective_latex(obj_type, obj_coeffs, n)
+        constraint_lines = _build_constraints_latex(constraints_raw, n)
+        sign_line = _build_variable_signs_latex(var_signs, n)
+        constraints_tex = " \\\\\n".join(constraint_lines)
+        sign_part = rf"\\ & {sign_line.strip()}" if sign_line else ""
+        full_latex = (
+            rf"\begin{{alignat*}}{{2}}"
+            + "\n" + obj_line + r" \\"
+            + "\n" + r"  \text{s.t.} \quad"
+            + "\n" + constraints_tex
+            + "\n" + sign_part
+            + "\n" + r"\end{alignat*}"
+        )
+        st.latex(full_latex)
+
+        # Hiển thị các bước giải ngay bên dưới đề bài
+        if captured_stdout.strip():
+            st.markdown("**📋 Các bước giải chi tiết:**")
+            st.code(captured_stdout, language="text")
+        else:
+            st.info("💡 Bật **'Hiển thị các bước chi tiết'** ở sidebar để xem từng bước.")
     # ── Graph (Graphical method) ───────────────────────────────────────────────
     if settings["method"] == SolverMethod.GRAPHICAL and status == "OPTIMAL":
         st.markdown("### 📈 Đồ thị vùng khả thi")
