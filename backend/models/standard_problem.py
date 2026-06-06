@@ -3,7 +3,7 @@ from backend.utils.formating import format_expression, clean_number
 class StandardProblem:
     """
     The Linear Programming form after Standardizing. It is the data structure used in Simplex, Two-phase, or Dual Problem
-    The Canonical Problem:
+    The Standard Problem:
         min c^T x
         Ax <= b
         x >= 0

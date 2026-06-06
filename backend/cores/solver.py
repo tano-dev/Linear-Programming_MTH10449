@@ -56,7 +56,7 @@ class LPSolver:
             standard_problem: StandardProblem = standardizer(self.problem)
 
             if self.verbose:
-                print("The canonical problem")
+                print("The standard problem")
                 standard_problem.show()
 
             if standard_problem.need_two_phases:
