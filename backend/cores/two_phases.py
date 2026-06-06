@@ -1,13 +1,13 @@
 import numpy as np
 from fractions import Fraction
 
-from backend.models import CanonicalProblem
+from backend.models import StandardProblem
 
 class TwoPhases:
     """
     Two - phases algorithm
     """
-    def __init__(self, problem: CanonicalProblem, bland: bool = False, verbose: bool=True):
+    def __init__(self, problem: StandardProblem, bland: bool = False, verbose: bool=True):
         if not problem.need_two_phases:
             raise ValueError("This problem does not need Two - Phases algorithm. Please try to use another algorithm")
         self.problem = problem

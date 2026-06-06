@@ -2,7 +2,7 @@ from backend.models.variable import VariableSign, Variable
 from backend.models.objective import ObjectiveType, Objective
 from backend.models.constraint import ConstraintType, Constraint
 from backend.models.problem import Problem
-from backend.models.canonical_problem import CanonicalProblem
+from backend.models.standard_problem import StandardProblem
 
 class Standardizer:
     """
@@ -13,7 +13,7 @@ class Standardizer:
     def __call__(self, problem):
         return self.standardize(problem)
 
-    def standardize(self, problem: Problem) -> CanonicalProblem:
+    def standardize(self, problem: Problem) -> StandardProblem:
         
         # Normalize variables
         (variables, objective, constraints) = self._normalize_variables(problem=problem)
@@ -45,7 +45,7 @@ class Standardizer:
 
         b = self._build_b_vector(constraints=normalized_constraints)
 
-        return CanonicalProblem(
+        return StandardProblem(
             c=c,
             A=A,
             b=b,

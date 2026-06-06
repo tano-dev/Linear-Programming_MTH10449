@@ -1,6 +1,6 @@
 from backend.utils.formating import format_expression, clean_number
 
-class CanonicalProblem:
+class StandardProblem:
     """
     The Linear Programming form after Standardizing. It is the data structure used in Simplex, Two-phase, or Dual Problem
     The Canonical Problem:

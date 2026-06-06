@@ -1,7 +1,7 @@
 from enum import Enum
 
 from backend.cores import Standardizer, GraphicalSolver, Simplex, TwoPhases
-from backend.models import Problem, CanonicalProblem
+from backend.models import Problem, StandardProblem
 
 class SolverMethod(Enum):
     """
@@ -53,21 +53,21 @@ class LPSolver:
                 print("Normalize the original problem")
 
             standardizer = Standardizer()
-            canonical_problem = standardizer(self.problem)
+            standard_problem: StandardProblem = standardizer(self.problem)
 
             if self.verbose:
                 print("The canonical problem")
-                canonical_problem.show()
+                standard_problem.show()
 
-            if canonical_problem.need_two_phases:
+            if standard_problem.need_two_phases:
                 if self.verbose:
                     print("[Two Phase Solver] Detected b_i < 0, routing to Two-Phase Solver")
-                solver = TwoPhases(problem=canonical_problem, bland=self.bland, verbose=self.verbose)
+                solver = TwoPhases(problem=standard_problem, bland=self.bland, verbose=self.verbose)
 
             else:
                 if self.verbose:
                     print("[Pure Simplex] Standard form detected. Routing to Pure Simplex Solver")
-                solver = Simplex(problem=canonical_problem, bland=self.bland, verbose=self.verbose)
+                solver = Simplex(problem=standard_problem, bland=self.bland, verbose=self.verbose)
             return solver.solve()
         
         else:

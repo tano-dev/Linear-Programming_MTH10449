@@ -1,13 +1,13 @@
 import numpy as np
 from fractions import Fraction
 
-from backend.models import CanonicalProblem
+from backend.models import StandardProblem
 
 class Simplex:
     """
     Simplex algorithm
     """
-    def __init__(self, problem: CanonicalProblem, bland: bool = False, verbose: bool = True):
+    def __init__(self, problem: StandardProblem, bland: bool = False, verbose: bool = True):
         if problem.need_two_phases:
             raise ValueError("This problem need two-phases algorithm")
         
