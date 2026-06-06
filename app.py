@@ -847,11 +847,15 @@ def generate_latex_document(
         constraints_tex += " \\\\\n    & " + sign_line.strip()
  
     status = result.get("status", "UNKNOWN")
-    status_vn = {
-        "OPTIMAL": "Tối ưu (Optimal)",
-        "INFEASIBLE": "Vô nghiệm (Infeasible)",
-        "UNBOUNDED": "Không bị chặn (Unbounded)",
-    }.get(status, status)
+    is_multiple = result.get("has_multiple_optimal", False)
+    if status == "OPTIMAL" and is_multiple:
+        status_vn = "Tối ưu — Vô số nghiệm (Multiple Optima)"
+    else:
+        status_vn = {
+            "OPTIMAL": "Tối ưu (Optimal)",
+            "INFEASIBLE": "Vô nghiệm (Infeasible)",
+            "UNBOUNDED": "Không bị chặn (Unbounded)",
+        }.get(status, status)
  
     # Build result section
     result_tex = ""
@@ -860,6 +864,7 @@ def generate_latex_document(
         solution = result.get("solution", {})
         sol_items = ", \\quad ".join([f"x_{{{k[1:]}}} = {v}" if k.startswith("x") else f"{_escape_latex(k)} = {v}"
                                       for k, v in solution.items()])
+        multiple_note = "\n\\\\ \\textit{*Lưu ý: Bài toán có vô số nghiệm. Dưới đây chỉ là một phương án tối ưu cơ bản.}\n" if is_multiple else ""
         result_tex = f"""
 \\subsection*{{Nghiệm tối ưu}}
  
@@ -994,11 +999,14 @@ def render_result(result, captured_stdout, problem, settings,
 
     # ── Status badge ──────────────────────────────────────────────────────────
     if status == "OPTIMAL":
-        st.success("✅ TỐI ƯU (OPTIMAL)")
+        if result.get("has_multiple_optimal", False):
+            st.success("✅ TỐI ƯU (VÔ SỐ NGHIỆM / MULTIPLE OPTIMA)")
+        else:
+            st.success("✅ TỐI ƯU (OPTIMAL)")
     elif status == "INFEASIBLE":
         st.error("❌ VÔ NGHIỆM (INFEASIBLE)")
     elif status == "UNBOUNDED":
-        st.warning("∞ KHÔNG BỊ CHẶN (UNBOUNDED)")
+        st.warning("∞ KHÔNG GIỚI NỘI (UNBOUNDED)")
     else:
         st.info(f"Trạng thái: {status}")
 
