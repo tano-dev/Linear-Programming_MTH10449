@@ -19,6 +19,7 @@ class GraphicalSolver:
         self.var1 = problem.variables[0]
         self.var2 = problem.variables[1]
         self.status = "INITIALIZED"
+        self.BIG_M = 1e6  # Thêm hộp giới hạn (Bounding Box) để bắt lỗi Unbounded
 
     def _get_line_equation(self, constraint) -> tuple:
         """Extract coefficients a1, a2 and constant b from a constraint"""
@@ -44,6 +45,10 @@ class GraphicalSolver:
         if self.var2.sign in [VariableSign.NON_NEGATIVE, VariableSign.NON_POSITIVE]:
             lines_M.append([0.0, 1.0]) # x2 = 0
             lines_v.append(0.0)
+
+        # 3. Add Bounding Box limits (Giới hạn vùng vẽ để bắt Unbounded)
+        lines_M.extend([[1.0, 0.0], [-1.0, 0.0], [0.0, 1.0], [0.0, -1.0]])
+        lines_v.extend([self.BIG_M, self.BIG_M, self.BIG_M, self.BIG_M])
 
         intersections = []
         # Solve the system of 2 equations for every pair of lines
@@ -120,6 +125,14 @@ class GraphicalSolver:
             elif not is_max and val < best_val:
                 best_val, best_pt = val, pt
 
+        if best_pt is not None and (abs(best_pt[0]) >= self.BIG_M - 1e-3 or abs(best_pt[1]) >= self.BIG_M - 1e-3):
+            return {
+                "status": "UNBOUNDED",
+                "optimal_value": float('inf') if is_max else float('-inf'),
+                "solution": None,
+                "feasible_vertices": []
+            }
+
         self.status = "OPTIMAL"
 
         def to_frac_str(val):
@@ -131,9 +144,8 @@ class GraphicalSolver:
             self.var1.name: to_frac_str(best_pt[0]),
             self.var2.name: to_frac_str(best_pt[1])
         }
-
         
-        formatted_vertices = [(round(float(p[0]), 5), round(float(p[1]), 5)) for p in feasible_pts]
+        formatted_vertices = [(round(float(p[0]), 5), round(float(p[1]), 5)) for p in feasible_pts if abs(p[0]) < self.BIG_M - 1e-3 and abs(p[1]) < self.BIG_M - 1e-3]
 
         return {
             "status": self.status,
@@ -146,9 +158,11 @@ class GraphicalSolver:
         if result['status'] != "OPTIMAL":
             if self.verbose:
                 print("\n[Plot Error] Cannot plot the graph because the problem is Infeasible or Unbounded.")
-            return None  # ← trả về None rõ ràng thay vì return trống
+            return None
 
         pts = np.array(result['feasible_vertices'])
+        if len(pts) == 0:
+            return None
 
         # Sắp xếp đỉnh ngược chiều kim đồng hồ
         centroid = np.mean(pts, axis=0)
@@ -157,18 +171,16 @@ class GraphicalSolver:
 
         fig, ax = plt.subplots(figsize=(9, 7))
 
-        # ── Tính range để padding cân đối ──────────────────────────────────────
         min_x, max_x = min(pts[:, 0]), max(pts[:, 0])
         min_y, max_y = min(pts[:, 1]), max(pts[:, 1])
-        pad_x = max((max_x - min_x) * 0.25, 3.0)   # ít nhất 3 đơn vị
+        pad_x = max((max_x - min_x) * 0.25, 3.0)
         pad_y = max((max_y - min_y) * 0.25, 3.0)
 
         x_lo, x_hi = min_x - pad_x, max_x + pad_x
         y_lo, y_hi = min_y - pad_y, max_y + pad_y
 
-        # ── Vẽ các đường ràng buộc ─────────────────────────────────────────────
         x_range = np.linspace(x_lo, x_hi, 400)
-        colors = plt.cm.tab10.colors  # bảng màu 10 màu phân biệt
+        colors = plt.cm.tab10.colors
 
         for idx, c in enumerate(self.problem.constraints):
             a1 = c.coeffs.get(self.var1.name, 0.0)
@@ -177,7 +189,6 @@ class GraphicalSolver:
             color = colors[idx % len(colors)]
 
             if abs(a2) > 1e-9:
-                # x2 = (b - a1*x1) / a2
                 y_range = (b - a1 * x_range) / a2
                 label = (
                     f"${a1:g}x_1 + {a2:g}x_2 {c.constraint_type.value} {b:g}$"
@@ -186,19 +197,16 @@ class GraphicalSolver:
                 ax.plot(x_range, y_range, color=color, linewidth=1.5,
                         linestyle='--', label=label)
             elif abs(a1) > 1e-9:
-                # Đường thẳng đứng x1 = b/a1
                 x_val = b / a1
                 ax.axvline(x_val, color=color, linewidth=1.5, linestyle='--',
                         label=f"$x_1 = {b/a1:g}$")
 
-        # ── Vẽ vùng khả thi ────────────────────────────────────────────────────
         poly = Polygon(sorted_pts, closed=True,
                     facecolor='lightblue', edgecolor='blue',
                     alpha=0.45, linewidth=2, zorder=2)
         ax.add_patch(poly)
 
-        # ── Vẽ các đỉnh và nhãn ────────────────────────────────────────────────
-        offset_x = (x_hi - x_lo) * 0.025   # offset theo tỷ lệ scale
+        offset_x = (x_hi - x_lo) * 0.025
         offset_y = (y_hi - y_lo) * 0.025
 
         for pt in pts:
@@ -207,13 +215,11 @@ class GraphicalSolver:
                     f"({pt[0]:.2f}, {pt[1]:.2f})",
                     fontsize=9, color='#222222', zorder=5)
 
-        # ── Highlight điểm tối ưu ──────────────────────────────────────────────
         opt_x = float(Fraction(result['solution'][self.var1.name]))
         opt_y = float(Fraction(result['solution'][self.var2.name]))
         ax.plot(opt_x, opt_y, 'r*', markersize=14, zorder=6,
                 label=f"Optimal: $z^* = {result['optimal_value']}$")
 
-        # ── Trục tọa độ, grid, giới hạn ────────────────────────────────────────
         ax.axhline(0, color='black', linewidth=1.2)
         ax.axvline(0, color='black', linewidth=1.2)
         ax.set_xlim(x_lo, x_hi)

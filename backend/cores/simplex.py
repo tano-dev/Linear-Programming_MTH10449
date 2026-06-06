@@ -20,12 +20,14 @@ class Simplex:
 
         self.M = np.zeros((self.num_constraints + 1, self.num_variables + 1))
 
-        self.M[:self.num_constraints, 0] = problem.b
-        self.M[:self.num_constraints, 1:] = -np.array(problem.A)
+        if self.num_constraints > 0:
+            self.M[:self.num_constraints, 0] = problem.b
+            self.M[:self.num_constraints, 1:] = -np.array(problem.A)
         self.M[self.num_constraints, 1:] = problem.c
 
         self.non_basic_vars = problem.variable_names.copy()
         self.basic_vars = [f"w_{i+1}" for i in range(self.num_constraints)]
+
 
     def find_entering_variable(self, obj_row_idx: int) -> int:
         obj_row = self.M[obj_row_idx, 1:]
@@ -121,6 +123,29 @@ class Simplex:
                     eq_str += f"  {sign} {coeff_str}{nb_var}"
             print(eq_str)
         print("\n")
+
+    def has_multiple_optima(self):
+        obj_row = self.M[self.num_constraints, 1:]
+
+        for j in range(len(self.non_basic_vars)):
+
+            if abs(obj_row[j]) > 1e-9:
+                continue
+
+            ratios = []
+
+            for i in range(self.num_constraints):
+                a = self.M[i, j + 1]
+
+                if a < -1e-9:
+                    ratios.append(
+                        self.M[i, 0] / abs(a)
+                    )
+
+            if ratios and min(ratios) > 1e-9:
+                return True
+
+        return False
     
     def _run_simplex(self, obj_row: int):
         while True:
@@ -146,9 +171,17 @@ class Simplex:
 
         if self.status == "UNBOUNDED":
             return {"status": "UNBOUNDED", "optimal_value": float("inf") if self.problem.is_from_max else float("-inf")}
+        
+        result = self._extract_solution()
 
-        return self._extract_solution()
-    
+        if self.status == "OPTIMAL":
+            if self.has_multiple_optima():
+                result["has_multiple_optimal"] = True
+
+                if self.verbose:
+                    print('Multiple Optimal Solutions')
+        return result
+
     def _extract_solution(self):
         std_solution = {}
         for var in self.problem.variable_names:

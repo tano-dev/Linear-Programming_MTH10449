@@ -17,10 +17,11 @@ class TwoPhases:
         self.verbose = verbose
         self.status = "INITIALIZED"
 
-        self.M = np.zeros((self.num_constraints + 2, self.num_variables + 2)) 
-        self.M[:self.num_constraints, 0] = problem.b
-        self.M[:self.num_constraints, 1:self.num_variables+1] = -np.array(problem.A)
-        self.M[:self.num_constraints, -1] = 1.0
+        self.M = np.zeros((self.num_constraints + 2, self.num_variables + 2))
+        if self.num_constraints > 0:
+            self.M[:self.num_constraints, 0] = problem.b
+            self.M[:self.num_constraints, 1:self.num_variables+1] = -np.array(problem.A)
+            self.M[:self.num_constraints, -1] = 1.0
         self.M[self.num_constraints, self.num_variables+1] = 1.0 
         self.M[self.num_constraints+1, 1:self.num_variables+1] = problem.c
 
@@ -122,6 +123,29 @@ class TwoPhases:
             print(eq_str)
         print("\n")
 
+    def has_multiple_optima(self):
+        obj_row = self.M[self.num_constraints, 1:]
+
+        for j in range(len(self.non_basic_vars)):
+
+            if abs(obj_row[j]) > 1e-9:
+                continue
+
+            ratios = []
+
+            for i in range(self.num_constraints):
+                a = self.M[i, j + 1]
+
+                if a < -1e-9:
+                    ratios.append(
+                        self.M[i, 0] / abs(a)
+                    )
+
+            if ratios and min(ratios) > 1e-9:
+                return True
+
+        return False
+
     def _run_simplex(self, obj_row: int, phase_name : str):
         while True:
             c_in = self.find_entering_variable(obj_row)
@@ -151,6 +175,9 @@ class TwoPhases:
             self.print_dictionary("Phase 1")
         
         self.status = self._run_simplex(obj_row=self.num_constraints, phase_name="Phase 1")
+
+        if abs(self.M[self.num_constraints, 0]) > 1e-9:
+            return {"status": "INFEASIBLE"}
 
         if self.status == "UNBOUNDED":
             return {"status": "UNBOUNDED", "optimal_value": float("inf") if self.problem.is_from_max else float("-inf")}
@@ -190,7 +217,15 @@ class TwoPhases:
         if self.status == "UNBOUNDED":
             return {"status": "UNBOUNDED", "optimal_value": float("inf") if self.problem.is_from_max else float("-inf")}
 
-        return self._extract_solution()
+        result = self._extract_solution()
+
+        if self.status == "OPTIMAL":
+            if self.has_multiple_optima():
+                result["has_multiple_optimal"] = True
+                if self.verbose:
+                    print('Multiple Optimal Solutions')
+
+        return result
     
     def _extract_solution(self):
         std_solution = {}
