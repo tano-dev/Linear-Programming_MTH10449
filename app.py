@@ -431,7 +431,7 @@ try:
         Variable, VariableSign, Constraint, ConstraintType,
         Objective, ObjectiveType, Problem
     )
-    from backend.cores import LPSolver, SolverMethod
+    from backend.cores import LPSolver, SolverMethod, SimplexCyclingError
     from backend.cores.geometry import GraphicalSolver
     BACKEND_OK = True
 except ImportError as e:
@@ -1177,6 +1177,10 @@ def main():
                 result, captured = solve_problem(problem, settings)
                 render_result(result, captured, problem, settings,
                   n, var_signs, obj_type, obj_coeffs, constraints_raw)
+
+            except SimplexCyclingError as e:
+                st.error(f"Lỗi thuật toán: {e}")
+                st.info("💡Gợi ý: Hãy thử bật tùy chọn 'Luật Bland' ở Sidebar để ngăn chặn lặp vòng lặp")
 
             except Exception as e:
                 st.error(f"Lỗi: {e}")
