@@ -3,6 +3,9 @@ from fractions import Fraction
 
 from backend.models import StandardProblem
 
+class SimplexCyclingError(Exception):
+    pass
+
 class Simplex:
     """
     Simplex algorithm
@@ -147,8 +150,11 @@ class Simplex:
 
         return False
     
-    def _run_simplex(self, obj_row: int):
+    def _run_simplex(self, obj_row: int, max_iter: int = 1000):
+        iter = 0
         while True:
+            if iter > max_iter:
+                raise SimplexCyclingError("Thuật toán bị lặp vòng vô tận do bài toán suy biến")
             c_in = self.find_entering_variable(obj_row)
             if c_in == -1:
                 return "OPTIMAL"
@@ -160,6 +166,8 @@ class Simplex:
             self.pivot(r_out=r_out, c_in=c_in)
             if self.verbose:
                 self.print_dictionary()
+
+            iter += 1
 
     def solve(self) -> dict:
         if self.verbose:

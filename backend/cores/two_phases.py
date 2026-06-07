@@ -2,6 +2,7 @@ import numpy as np
 from fractions import Fraction
 
 from backend.models import StandardProblem
+from backend.cores import SimplexCyclingError
 
 class TwoPhases:
     """
@@ -146,8 +147,11 @@ class TwoPhases:
 
         return False
 
-    def _run_simplex(self, obj_row: int, phase_name : str):
+    def _run_simplex(self, obj_row: int, phase_name : str, max_iter: int = 1000):
+        iter = 0
         while True:
+            if iter > max_iter:
+                raise SimplexCyclingError("Thuật toán bị lặp vòng vô tận do bài toán suy biến")
             c_in = self.find_entering_variable(obj_row)
             if c_in == -1:
                 return "OPTIMAL"
@@ -159,6 +163,7 @@ class TwoPhases:
             self.pivot(r_out=r_out, c_in=c_in)
             if self.verbose:
                 self.print_dictionary(phase_name)
+            iter += 1
 
     def solve(self) -> dict:
         if self.verbose:
